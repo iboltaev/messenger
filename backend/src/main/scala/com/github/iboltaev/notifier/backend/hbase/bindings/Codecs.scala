@@ -1,13 +1,10 @@
 package com.github.iboltaev.notifier.backend.hbase.bindings
 
-import com.univocity.parsers.common.processor.ObjectRowWriterProcessor
-import com.univocity.parsers.csv.{CsvFormat, CsvParser, CsvParserSettings, CsvWriter, CsvWriterSettings}
 import magnolia1.{CaseClass, Magnolia, SealedTrait}
 import org.apache.hadoop.hbase.client.{Delete, Get, Put, Result}
 import org.apache.hadoop.hbase.util.Bytes
 
 import scala.jdk.CollectionConverters._
-import scala.reflect.runtime.universe.Return
 
 object Codecs {
   implicit def toBytes(s: String): Array[Byte] = Bytes.toBytes(s)
@@ -17,21 +14,6 @@ object Codecs {
 
     def encodeVec(k: K): Vector[String]
     def decodeVec(v: Vector[String], offset: Int = 0): K
-
-    def encode(k: K): String = {
-      val vec = encodeVec(k)
-      vec.mkString(",")
-    }
-
-    def decode(s: String): K = {
-      val arr = s.split(',')
-      decodeVec(arr.toVector)
-    }
-
-    def encodeBytes(k: K): Array[Byte] = encode(k)
-
-    def get(k: K): Get = new Get(encodeBytes(k))
-    def del(k: K): Delete = new Delete(encodeBytes(k))
   }
 
   implicit val strKeyCodec: KeyCodec[String] = new KeyCodec[String] {
@@ -89,23 +71,6 @@ object Codecs {
   trait ValueCodec[V] {
     def encodeMap(v: V, param: String = ""): Map[String, String]
     def decodeMap(m: Map[String, String], param: String = ""): V
-
-    def put[K : KeyCodec](k: K, colFamily: String, v: V): Put = {
-      val res = new Put(implicitly[KeyCodec[K]].encodeBytes(k))
-      val map = encodeMap(v)
-      map.foldLeft(res) { (p, t) =>
-        p.addColumn(colFamily, t._1, t._2)
-      }
-    }
-
-    def decode(res: Result, colFamily: String): V = {
-      val fm = res.getFamilyMap(colFamily)
-      val map = fm.asScala.map { case (bytes, bytes1) =>
-        (Bytes.toString(bytes), Bytes.toString(bytes1))
-      }.toMap
-
-      decodeMap(map)
-    }
   }
 
   def mkStrValueCodec(paramName: String) = new ValueCodec[String] {

@@ -5,8 +5,8 @@ import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import com.github.iboltaev.notifier.BufferLogic
 import com.github.iboltaev.notifier.BufferLogic.State
-import com.github.ibolteav.notifier.backend.hbase.HBaseClient
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs._
+import com.github.iboltaev.notifier.backend.hbase.HBaseClient
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs._
 import org.apache.hadoop.fs.Path
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

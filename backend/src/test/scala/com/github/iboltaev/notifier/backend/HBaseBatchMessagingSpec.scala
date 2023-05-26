@@ -4,14 +4,15 @@ import cats.effect.IO
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import com.github.iboltaev.notifier.BatchMessagingLogic.{MsgData, State}
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs.{ValueCodec, mkStrValueCodec}
-import com.github.ibolteav.notifier.backend.hbase.{HBaseBatchMessaging, fromJavaFuture}
+import com.github.iboltaev.notifier.backend.hbase.HBaseBatchMessaging
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{ValueCodec, mkStrValueCodec}
+import com.github.iboltaev.notifier.backend.hbase._
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-// TODO: make normal intergration tests
+// TODO: make normal integration tests
 class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
   implicit val rnt = IORuntime.global
 
@@ -30,7 +31,7 @@ class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
         }
 
         override protected def stateTableName: String = "state"
-        override protected def messagesTableName: String = "batch_messages"
+        override protected def messagesTableName: String = "messages"
         override protected def messageLogTableName: String = "log"
 
         override val runtime: IORuntime = rnt
@@ -48,6 +49,10 @@ class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
           sendKeys(msgData, addresses).compile.toVector
         }
 
+        def sendMsgsIO(recipient: String, messages: Map[String, String], newAddresses: Set[String]) = {
+          send(recipient, messages, newAddresses).compile.toVector
+        }
+
         def initState(recipient: String) =
           put[StateKey, State](stateTableName, stateColFamily, StateKey(recipient), State(0, Set.empty[String]))
       }
@@ -62,6 +67,19 @@ class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
 
       val msgData = MsgData[String]("ilyxa", Map("1" -> "hello-1", "2" -> "hello-2"), 100500)
       val res = m.sendKeysIO(msgData, Set("addr1", "addr2")).await
+      println(res)
+    }
+
+    io.unsafeRunSync()
+  }
+
+  it should "work-2" in {
+    val io = async[IO] {
+      val m = mkBatchMsg.await
+
+      m.initState("ilyxa").await
+
+      val res = m.sendMsgsIO("ilyxa", Map("3" -> "hello-3"), Set("addr-1", "addr-2")).await
       println(res)
     }
 
