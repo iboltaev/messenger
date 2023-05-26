@@ -5,9 +5,9 @@ import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import com.github.iboltaev.notifier.BatchMessagingLogic.State
 import com.github.iboltaev.notifier.BufferLogic
-import com.github.ibolteav.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs.{ValueCodec, mkStrValueCodec, strValueCodec}
+import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{ValueCodec, mkStrValueCodec, strValueCodec}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -71,7 +71,7 @@ class HBaseMessengerSpec extends AnyFlatSpec with Matchers {
       val m = mkMess.await
 
       m.initState("ilyxa").await
-
+      
       val res1 = m.send("ilyxa", "1", 100500, Left(Adr("123"))).compile.toVector.await
       println(res1)
 

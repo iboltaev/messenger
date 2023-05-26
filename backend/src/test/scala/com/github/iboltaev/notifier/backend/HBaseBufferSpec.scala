@@ -5,9 +5,9 @@ import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import cats.implicits._
 import com.github.iboltaev.notifier.BufferLogic.State
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs
-import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs.strValueCodec
-import com.github.ibolteav.notifier.backend.hbase.{HBaseBuffer, fromJavaFuture}
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.strValueCodec
+import com.github.iboltaev.notifier.backend.hbase.{HBaseBuffer, fromJavaFuture}
 import fs2.{Stream => FStream}
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}

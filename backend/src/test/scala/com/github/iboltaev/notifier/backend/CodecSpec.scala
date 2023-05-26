@@ -1,5 +1,7 @@
 package com.github.iboltaev.notifier.backend
 
+import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{KeyCodec, ValueCodec}
+import com.github.iboltaev.notifier.backend.hbase.HBaseClient._
 import org.scalacheck.Gen
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -8,8 +10,6 @@ import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import scala.jdk.CollectionConverters._
 
 class CodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks {
-  import com.github.ibolteav.notifier.backend.hbase.bindings.Codecs._
-
   implicit def asTraversable[T](ar: java.util.ArrayList[T]): Traversable[T] =
     ar.asScala
 
@@ -18,10 +18,10 @@ class CodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks 
 
   case class Ex3(key: String, value: Either[Ex1, Ex2])
 
-  lazy val keyCodec = KeyCodec.gen[Ex1]
-  lazy val valueCodec = ValueCodec.gen[Ex1]
-  lazy val valCodec = ValueCodec.gen[Either[Ex1, Ex2]]
-  lazy val valCodec2 = ValueCodec.gen[Ex3]
+  implicit lazy val keyCodec = KeyCodec.gen[Ex1]
+  implicit lazy val valueCodec = ValueCodec.gen[Ex1]
+  implicit lazy val valCodec = ValueCodec.gen[Either[Ex1, Ex2]]
+  implicit lazy val valCodec2 = ValueCodec.gen[Ex3]
 
   implicit lazy val ordering: Ordering[Ex1] = Ordering.by[Ex1, (Long, String, Long, String, Long)](v => (v.v1, v.v2, v.v3.v5, v.v3.v6, v.v4))
 
@@ -35,8 +35,8 @@ class CodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks 
 
   it should "work with KeyCodec" in {
     forAll(gen) { ex =>
-      val str2 = keyCodec.encode(ex)
-      val ex2 = keyCodec.decode(str2)
+      val str2 = encode(ex)
+      val ex2 = decode(str2)
 
       ex2 should equal (ex)
     }
@@ -57,9 +57,9 @@ class CodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks 
     forAll(seqGen) { seq =>
       seq.toSeq.sorted
       val ordered = seq.toSeq.sorted
-      val parsed = seq.map(s => keyCodec.encode(s)).toSeq.sorted
+      val parsed = seq.map(s => encode(s)).toSeq.sorted
 
-      parsed.map(keyCodec.decode) should contain theSameElementsInOrderAs(ordered)
+      parsed.map(s => decode(s)) should contain theSameElementsInOrderAs(ordered)
     }
   }
 
