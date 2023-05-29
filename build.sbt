@@ -25,7 +25,10 @@ lazy val backendDependencies = Seq(
   "org.typelevel" %% "log4cats-slf4j"   % "2.6.0",  // Direct Slf4j Support - Recommended
   "org.scala-lang" % "scala-reflect" % "2.13.10",
   "com.softwaremill.magnolia1_2" %% "magnolia" % "1.1.3",
-  "io.grpc" % "grpc-netty-shaded" % scalapb.compiler.Version.grpcJavaVersion
+  "io.grpc" % "grpc-netty-shaded" % scalapb.compiler.Version.grpcJavaVersion,
+  "com.github.pureconfig" %% "pureconfig" % "0.17.4",
+  "org.http4s" %%  "http4s-netty-server" % "0.6.0-M3",
+  "org.http4s" %% "http4s-dsl" % "1.0.0-M37"
 )
 
 lazy val core = (project in file("core"))
@@ -42,9 +45,3 @@ lazy val backend = (project in file("backend"))
 
 lazy val root = (project in file("."))
   .aggregate(core, backend)
-
-
-//libraryDependencies += "org.apache.hbase" % "hbase-client" % "2.5.4"
-
-
-
