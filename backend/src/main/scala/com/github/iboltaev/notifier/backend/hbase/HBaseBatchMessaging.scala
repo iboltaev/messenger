@@ -20,8 +20,6 @@ trait HBaseBatchMessaging[A, M] extends HBaseClient with BatchMessagingLogic[A, 
   implicit lazy val stateKeyCodec = KeyCodec.gen[StateKey]
   implicit lazy val msgKeyCodec = KeyCodec.gen[MsgKey]
   implicit lazy val logKeyCodec = KeyCodec.gen[LogKey]
-  implicit lazy val epochValCodec = ValueCodec.gen[Epoch]
-  implicit lazy val stateValCodec = ValueCodec.gen[State]
   implicit lazy val stubValCodec = ValueCodec.gen[Stub]
 
   protected def stateTableName: String
