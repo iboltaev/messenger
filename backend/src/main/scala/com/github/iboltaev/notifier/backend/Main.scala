@@ -5,7 +5,11 @@ import cats.effect.cps._
 
 object Main extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = async[IO] {
-    net.InternalServiceSrv.serverHandle.await
+
+    val res = MessengerService.makeEndpoints.await
+
+    IO.consoleForIO.println(res).await
+
     ExitCode.Success
   }
 }

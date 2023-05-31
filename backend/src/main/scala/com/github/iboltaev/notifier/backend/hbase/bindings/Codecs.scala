@@ -60,6 +60,7 @@ object Codecs {
       }
     }
 
+    // there's no sealed traits support by KeyCodec
     def split[K](ctx: SealedTrait[KeyCodec, K]): KeyCodec[K] = new KeyCodec[K] {
       override def encodeVec(k: K): Vector[String] = ???
       override def decodeVec(v: Vector[String], offset: Int): K = ???
@@ -68,6 +69,7 @@ object Codecs {
     implicit def gen[K]: KeyCodec[K] = macro Magnolia.gen[K]
   }
 
+  // TODO: add prefixes to map keys to handle duplicate parameter names in nested case classes
   trait ValueCodec[V] {
     def encodeMap(v: V, param: String = ""): Map[String, String]
     def decodeMap(m: Map[String, String], param: String = ""): V

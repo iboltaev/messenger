@@ -4,6 +4,7 @@ import cats.effect.IO
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{KeyCodec, ValueCodec}
 import fs2.{Stream => FStream}
 
+// TODO: move 'colFamily' out of here, it's abstraction's leak
 trait DBClient {
   def get[K : KeyCodec, V: ValueCodec](tableName: String, colFamily: String, key: K): IO[V]
   def read[K: KeyCodec, V: ValueCodec](tableName: String, colFamily: String, from: K, until: K): FStream[IO, (K, V)]

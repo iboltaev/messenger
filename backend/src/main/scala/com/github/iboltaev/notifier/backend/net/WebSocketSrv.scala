@@ -15,7 +15,7 @@ trait WebSocketSrv {
   protected def state: Ref[IO, State]
   protected def handleReceive(room: String, clientId: String, receive: FStream[IO, WebSocketFrame]): FStream[IO, Unit]
 
-  protected def send(room: String, clientId: String, ws: WebSocketFrame): IO[Unit] = async[IO] {
+  protected def sendWs(room: String, clientId: String, ws: WebSocketFrame): IO[Unit] = async[IO] {
     val st = state.get.await
     val clientOpt = st.rooms.get(clientId).flatMap(_.get(clientId))
     clientOpt.fold(IO(())) { client =>
@@ -59,7 +59,7 @@ trait WebSocketSrv {
           .withOnClose(handleClose(room, clientId))
           .build(
             FStream.fromQueueUnterminated(send),
-            rec => handleReceive(room, clientId, rec)).await
+            rec => handleReceive(room, clientId, rec )).await
       }
     }
   }
