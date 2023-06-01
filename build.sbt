@@ -27,7 +27,7 @@ lazy val backendDependencies = Seq(
   "com.softwaremill.magnolia1_2" %% "magnolia" % "1.1.3",
   "io.grpc" % "grpc-netty-shaded" % scalapb.compiler.Version.grpcJavaVersion,
   "com.github.pureconfig" %% "pureconfig" % "0.17.4",
-  "org.http4s" %%  "http4s-netty-server" % "0.6.0-M3",
+  "org.http4s" %% "http4s-blaze-server" % "1.0.0-M37",
   "org.http4s" %% "http4s-dsl" % "1.0.0-M37"
 )
 

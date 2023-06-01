@@ -1,26 +1,21 @@
 package com.github.iboltaev.notifier.backend
 
-import cats.effect.unsafe.IORuntime
-import cats.effect.{IO, Ref, Resource}
 import cats.effect.cps._
-import cats.effect.syntax.all._
-import cats.effect.syntax.resource
+import cats.effect.unsafe.IORuntime
+import cats.effect.{IO, Ref}
 import com.github.iboltaev.notifier.backend.MessengerService.{Addr, Mess}
-import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.ValueCodec
+import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
 import com.github.iboltaev.notifier.backend.net.messages.{InternalServiceFs2Grpc, Messages, Response}
 import com.github.iboltaev.notifier.backend.net.{InternalServiceSrv, WebSocketSrv}
-import io.grpc.{Metadata, ServerServiceDefinition}
-import fs2.grpc.syntax.all._
-import org.http4s.netty.server.{NettyServerBuilder => WSNettyServerBuilder}
-import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
+import io.grpc.Metadata
+import org.http4s.blaze.server.BlazeServerBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}
 import org.http4s.server.Router
 import org.http4s.websocket.WebSocketFrame
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
 
 trait MessengerService
@@ -48,7 +43,11 @@ with HBaseMessenger[Addr, Mess] {
   override def receive(request: Messages, ctx: Metadata): IO[Response] = ???
 
   // websocket
-  override protected def handleReceive(room: String, clientId: String, receive: fs2.Stream[IO, WebSocketFrame]): fs2.Stream[IO, Unit] = ???
+  override protected def handleReceive(room: String, clientId: String, receive: fs2.Stream[IO, WebSocketFrame]): fs2.Stream[IO, Unit] = {
+    receive.foreach { frame =>
+      IO.consoleForIO.println(frame)
+    }
+  }
 
   // from business logic
   override protected def sendToAll(addresses: Set[Addr], epoch: Long, messages: Map[String, Mess]): IO[Set[Addr]] = ???
@@ -73,43 +72,21 @@ object MessengerService {
     }
   }
 
-  private def runServer(port: Int, service: ServerServiceDefinition): IO[Nothing] = {
-    NettyServerBuilder
-      .forPort(port)
-      .keepAliveTime(5, TimeUnit.SECONDS)
-      .addService(service)
-      .resource[IO]
-      .evalMap(server => IO.blocking(server.start()))
-      .useForever
-  }
-
   def makeEndpoints = async[IO] {
-    import org.http4s.dsl.io.{->}
-    import cats.syntax.all._
-
     val appConfig = Config.config.await
 
     val srvc = makeMessengerService("/hbase-site.xml", appConfig).await
     val service = InternalServiceFs2Grpc.bindServiceResource(srvc)
 
-    val grpcHandle = service.use { ssd =>
-      runServer(appConfig.grpcPort, ssd)
-    }
-
-    /*
-    val wsHandle = WSNettyServerBuilder
+    val wsHandle = BlazeServerBuilder
       .apply[IO]
       .bindHttp(appConfig.wsPort, appConfig.host)
-      .withHttpApp(
-        Router(
-          "/" -> srvc.routes
-        ).orNotFound
-      ).stream.compile.drain
+      .withHttpWebSocketApp(srvc.routes(_).orNotFound)
+      .resource
 
-    (grpcHandle, wsHandle).parMapN { case (_ , _) => () }
-     */
-
-    val res = grpcHandle.void.await
-    res
+    for {
+      grpc <- service
+      ws <- wsHandle
+    } yield (grpc, ws)
   }
 }
