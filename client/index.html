@@ -14,17 +14,12 @@
                var ws = new WebSocket("ws://localhost:8090/ws/ilyxa");
 
                ws.onopen = function() {
-
-                  // Web Socket is connected, send data using send()
-                  //ws.send("Message to send");
-                  //alert("Message is sent...");
-                  //alert("open...");
                   console.log("open...");
                };
 
                ws.onmessage = function (evt) {
                   var received_msg = evt.data;
-                  alert("Message is received...");
+                  console.log(received_msg);
                };
 
                ws.onclose = function() {

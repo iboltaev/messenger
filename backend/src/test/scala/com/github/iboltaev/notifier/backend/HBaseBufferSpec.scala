@@ -55,7 +55,7 @@ class HBaseBufferSpec extends AnyFlatSpec with Matchers {
 
       val fibers = (0 until 100).toList.map { i =>
         IO.asyncForIO.start(
-          buf.send("ilyxa", i.toString, java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC), s"message-$i")
+          buf.bufferSend("ilyxa", i.toString, java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC), s"message-$i")
             .compile.toVector
         )
       }.sequence.await
