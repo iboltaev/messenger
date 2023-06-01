@@ -36,7 +36,7 @@ trait BufferLogic[M, E] {
     }
   }
 
-  def send(recipient: String, key: String, timestamp: Long, msg: M): FStream[IO, E] = {
+  def bufferSend(recipient: String, key: String, timestamp: Long, msg: M): FStream[IO, E] = {
     val io = async[IO] {
       val state = readBufferState(recipient).await
       val lastEpoch = consistentAdd(recipient, Msg(state.epoch, key, timestamp, msg), state).await

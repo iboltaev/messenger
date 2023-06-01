@@ -72,13 +72,13 @@ class HBaseMessengerSpec extends AnyFlatSpec with Matchers {
 
       m.initState("ilyxa").await
       
-      val res1 = m.send("ilyxa", "1", 100500, Left(Adr("123"))).compile.toVector.await
+      val res1 = m.bufferSend("ilyxa", "1", 100500, Left(Adr("123"))).compile.toVector.await
       println(res1)
 
-      val res2 = m.send("ilyxa", "2", 100500, Right(Mess("hello-1"))).compile.toVector.await
+      val res2 = m.bufferSend("ilyxa", "2", 100500, Right(Mess("hello-1"))).compile.toVector.await
       println(res2)
 
-      val res3 = m.send("ilyxa", "3", 100500, Right(Mess("hello-2"))).compile.toVector.await
+      val res3 = m.bufferSend("ilyxa", "3", 100500, Right(Mess("hello-2"))).compile.toVector.await
       println(res3)
     }
 
