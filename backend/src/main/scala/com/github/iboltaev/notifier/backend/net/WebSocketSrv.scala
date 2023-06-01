@@ -4,10 +4,11 @@ import cats.effect.cps._
 import cats.effect.std.Queue
 import cats.effect.{IO, Ref}
 import fs2.{Stream => FStream}
-import org.http4s.HttpRoutes
+import org.http4s.{HttpRoutes, Response, Status}
 import org.http4s.dsl.io.{->, /, GET, Root}
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebSocketFrame
+import org.http4s.websocket.WebSocketFrame.{Ping, Text}
 
 import java.util.UUID
 
@@ -24,6 +25,7 @@ trait WebSocketSrv {
   }
 
   private def handleClose(room: String, clientId: String): IO[Unit] = state.update { old =>
+    println(s"handleClose room=$room, clientId=$clientId")
     val rooms = old.rooms.get(room)
     rooms.fold(old) { map =>
       val nm = map - clientId
@@ -34,13 +36,16 @@ trait WebSocketSrv {
     }
   }
 
-  lazy val routes = {
+  def routes(wsb: WebSocketBuilder[IO]) = {
     HttpRoutes.of[IO] {
       case GET -> Root / "ws" / room => async[IO] {
         val clientId = UUID.randomUUID().toString
         val send = Queue.unbounded[IO, WebSocketFrame].await
+
+        send.offer(Ping()).await
+        send.offer(Text(s"Welcome $clientId")).await
+
         val client = Client(clientId, room)(send)
-        val builder = WebSocketBuilder.apply[IO].await
         state.getAndUpdate { old =>
           val newRooms = old.rooms.get(room).fold {
             // crappy 'org.http4s.dsl.io.->' masks pair definition
@@ -55,11 +60,9 @@ trait WebSocketSrv {
           old.copy(rooms = newRooms)
         }.await
 
-        builder
-          .withOnClose(handleClose(room, clientId))
-          .build(
-            FStream.fromQueueUnterminated(send),
-            rec => handleReceive(room, clientId, rec )).await
+        wsb.build(
+          FStream.fromQueueUnterminated(send),
+          rec => handleReceive(room, clientId, rec )).await
       }
     }
   }
