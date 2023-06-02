@@ -3,6 +3,7 @@ package com.github.iboltaev.notifier.backend.hbase
 import cats.effect.IO
 import fs2.{Stream => FStream}
 import com.github.iboltaev.notifier.BatchMessagingLogic
+import com.github.iboltaev.notifier.BatchMessagingLogic.State
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{KeyCodec, ValueCodec}
 
 import java.time.ZoneOffset
@@ -61,4 +62,7 @@ trait HBaseBatchMessaging[A, M] extends HBaseClient with BatchMessagingLogic[A, 
       keys.toSeq.map(k => (LogKey(recipient, epoch, timestamp, k), Stub(0))))
   }
 
+  override def initState(recipient: String): IO[Unit] = {
+    putIfNotExists[StateKey, State](stateTableName, stateColFamily, StateKey(recipient), "epoch", State(0, Set.empty)).void
+  }
 }

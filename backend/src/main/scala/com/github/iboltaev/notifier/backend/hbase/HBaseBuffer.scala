@@ -45,6 +45,10 @@ trait HBaseBuffer[M, E] extends HBaseClient with BufferLogic[M, E] {
     read[MsgKey, Msg](bufferMessagesTableName, bufferMessagesColFamily, MsgKey(recipient, epoch, "", 0), MsgKey(recipient, epoch + 1, "", 0))
       .map(_._2)
   }
+
+  override def initBufferState(recipient: String): IO[Unit] = {
+    putIfNotExists[BufferStateKey, BufferState](bufferStateTableName, bufferStateColFamily, BufferStateKey(recipient + "-buf"), "epoch", BufferLogic.State(0)).void
+  }
 }
 
 object HBaseBuffer {

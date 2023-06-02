@@ -7,12 +7,16 @@ service InternalService {
 }
 
 message Messages {
-  repeated Message msgs = 1;
+  string room = 1;
+  repeated Message msgs = 2;
+  repeated string clientIds = 3;
 }
 
 message Message {
-  string addr = 1;
+  string id = 1;
   string msg = 2;
+  int64 epoch = 3;
+  int64 timestamp = 4;
 }
 
 message Response {

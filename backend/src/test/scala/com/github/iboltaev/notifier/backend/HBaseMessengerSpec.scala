@@ -3,7 +3,7 @@ package com.github.iboltaev.notifier.backend
 import cats.effect.IO
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
-import com.github.iboltaev.notifier.BatchMessagingLogic.State
+import com.github.iboltaev.notifier.BatchMessagingLogic.{FullMessage, State}
 import com.github.iboltaev.notifier.BufferLogic
 import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
@@ -47,20 +47,15 @@ class HBaseMessengerSpec extends AnyFlatSpec with Matchers {
         override val runtime: IORuntime = rnt
         override def connection: AsyncConnection = cn
 
-        override protected def sendToAll(addresses: Set[Adr], epoch: Long, messages: Map[String, Mess]): IO[Set[Adr]] = IO {
+        override protected def sendToAll(recipient: String, addresses: Set[Adr], epoch: Long, messages: Map[String, FullMessage[Mess]]): IO[Set[Adr]] = IO {
           for {
             a <- addresses
             m <- messages
           } {
-            println(s"send ${m._2.message} to ${a.adr}")
+            println(s"send ${m._2} to ${a.adr}")
           }
 
           Set.empty
-        }
-
-        def initState(recipient: String) = async[IO] {
-          put[StateKey, State](stateTableName, stateColFamily, StateKey(recipient), State(0, Set.empty[Adr])).await
-          put[StateKey, BufferState](stateTableName, stateColFamily, StateKey(recipient + "-buf"), BufferLogic.State(0)).await
         }
       }
     } yield m

@@ -18,7 +18,7 @@ case class Config(
 
 object Config {
   lazy val config: IO[Config] = IO.blocking {
-    ConfigSource.default.load[Config]
-      .right.get
+    val eith = ConfigSource.default.load[Config]
+    eith.right.get
   }
 }

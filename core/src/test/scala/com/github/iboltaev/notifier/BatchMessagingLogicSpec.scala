@@ -18,10 +18,10 @@ trait BatchDeliveryMock {
   var deliverCounter = 0
   val delivered = new ArrayBuffer[Elem[String]]()
 
-  protected def sendToAll(addresses: Set[String], epoch: Long, messages: Map[String, String]): IO[Set[String]] = IO {
+  protected def sendToAll(recipient: String, addresses: Set[String], epoch: Long, messages: Map[String, FullMessage[String]]): IO[Set[String]] = IO {
     val res = !isDeliveryFailed(deliverCounter)
     if(res) delivered ++= messages.map { case (_, v) =>
-      Msg[String](epoch = epoch, v)
+      Msg[String](epoch = epoch, v.msg)
     }
     deliverCounter += 1
 

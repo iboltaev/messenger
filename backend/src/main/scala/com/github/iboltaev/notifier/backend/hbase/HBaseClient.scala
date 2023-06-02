@@ -120,6 +120,17 @@ trait HBaseClient extends DBClient {
   def del[K: KeyCodec](tableName: String, key: K): IO[Unit] = withTable(tableName) { t =>
     t.delete(mkDel(key)).void
   }
+
+  def putIfNotExists[K: KeyCodec, V: ValueCodec](tableName: String, colFamily: String, key: K, qualifier: String, value: V): IO[Boolean] =
+    withTable(tableName) { t =>
+      import HBaseClient.toBytes
+      val res = t.checkAndMutate(encodeBytes(key), colFamily)
+        .qualifier(qualifier)
+        .ifNotExists()
+        .thenPut(mkPut(colFamily, key, value))
+
+      res.map(_.booleanValue())
+    }
 }
 
 object HBaseClient {

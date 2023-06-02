@@ -1,49 +1,22 @@
-<!DOCTYPE HTML>
-
 <html>
 <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <title>Chat Server</title>
+    <style>
+			#entry {
+				width: 100%;
+			}
 
-    <script type = "text/javascript">
-         function WebSocketTest() {
-
-            if ("WebSocket" in window) {
-               //alert("WebSocket is supported by your Browser!");
-               console.log("WebSocket is supported");
-
-               // Let us open a web socket
-               var ws = new WebSocket("ws://localhost:8090/ws/ilyxa");
-
-               ws.onopen = function() {
-                  console.log("open...");
-               };
-
-               ws.onmessage = function (evt) {
-                  var received_msg = evt.data;
-                  console.log(received_msg);
-               };
-
-               ws.onclose = function() {
-
-                  // websocket is closed.
-                  //alert("Connection is closed...");
-                  console.log("connection is closed...");
-               };
-
-               //ws.send("Message...");
-            } else {
-
-               // The browser doesn't support WebSocket
-               alert("WebSocket NOT supported by your Browser!");
-            }
-         }
-      </script>
-
+			#output {
+				width: 100%;
+				height: 95%;
+			}
+		</style>
+    <script language="javascript" type="text/javascript" src="chat.js"></script>
 </head>
-
-<body>
-<div id = "sse">
-    <a href = "javascript:WebSocketTest()">Run WebSocket</a>
-</div>
-
+<body onload="return chat.initPage();">
+<textarea id="output" readonly="true"></textarea>
+<br />
+<input type="text" id="entry" onkeypress="return chat.onEntryKeyPress(this, event);" />
 </body>
 </html>

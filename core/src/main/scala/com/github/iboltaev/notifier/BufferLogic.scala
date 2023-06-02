@@ -54,6 +54,8 @@ trait BufferLogic[M, E] {
       out(recipient, seq)
     }
   }
+
+  def initBufferState(recipient: String): IO[Unit] = IO(())
 }
 
 object BufferLogic {
