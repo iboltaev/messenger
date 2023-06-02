@@ -1,6 +1,8 @@
 package com.github.iboltaev.notifier.backend.hbase
 
 import cats.effect.IO
+import cats.effect.syntax.all._
+import cats.implicits.toTraverseOps
 import com.github.iboltaev.notifier.BatchMessagingLogic
 import com.github.iboltaev.notifier.BatchMessagingLogic.MsgData
 import fs2.{Stream => FStream}
@@ -20,5 +22,9 @@ trait HBaseMessenger[A, M]
      val msgData = MsgData(recipient = recipient, messages = messages, timeStamp = ts)
      sendKeys(msgData, addresses)
    }
+
+  def initRoomIfNotExists(room: String): IO[Unit] = {
+    Seq(initBufferState(room), initState(room)).sequence.void
+  }
 }
 

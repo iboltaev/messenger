@@ -3,15 +3,17 @@ package com.github.iboltaev.notifier.backend
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import cats.effect.{IO, Ref}
+import cats.effect.syntax.all._
 import cats.implicits.toTraverseOps
-import com.github.iboltaev.notifier.BatchMessagingLogic.Algo
+import com.github.iboltaev.notifier.BatchMessagingLogic.{Algo, FullMessage}
 import com.github.iboltaev.notifier.backend.MessengerService.{Addr, Mess}
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.ValueCodec
 import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
-import com.github.iboltaev.notifier.backend.net.messages.{InternalServiceFs2Grpc, Messages, Response}
-import com.github.iboltaev.notifier.backend.net.{InternalServiceSrv, WebSocketSrv}
+import com.github.iboltaev.notifier.backend.net.messages.{InternalServiceFs2Grpc, Message, Messages, Response}
+import com.github.iboltaev.notifier.backend.net.{Client, InternalServiceSrv, WebSocketSrv}
 import io.grpc.Metadata
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}
 import org.http4s.netty.server.NettyServerBuilder
@@ -45,37 +47,38 @@ trait MessengerService
   override protected def messagesTableName: String = config.messagesTable
   override protected def messageLogTableName: String = config.messageLogTable
 
-  // TODO: move to 'WebSocketSrv'
-  private def handleClose(room: String, clientId: String): IO[Unit] = state.update { old =>
-    println(s"handleClose room=$room, clientId=$clientId")
-    val rooms = old.rooms.get(room)
-    rooms.fold(old) { map =>
-      val nm = map - clientId
-      if (nm.isEmpty)
-        old.copy(old.rooms - room)
-      else
-        old.copy(old.rooms.updated(room, nm))
-    }
+  private def mkAddr(room: String, clientId: String): Addr = {
+    Addr(s"${config.host}:${config.grpcPort}:$clientId")
   }
 
-  private def mkAddr(room: String, clientId: String): Addr = {
-    Addr(s"${config.host}:${config.grpcPort}:$room:$clientId")
+  override protected def handleInitRoom(room: String): IO[Unit] = {
+    initRoomIfNotExists(room)
   }
 
   // grpc
-  override def receive(request: Messages, ctx: Metadata): IO[Response] = {
-    request.msgs.map { m =>
-      // TODO: make normal Address instead of Array[]
-      val Array(_, _, room, clientId) = m.addr.split(':')
-      sendWs(room, clientId, Text(m.msg)).map(res => (res, m.addr))
+  override def receive(request: Messages, ctx: Metadata): IO[Response] = async[IO]{
+    val room = request.room
+    val clientIds = request.clientIds.toSet
+    val st = state.get.await
+    val connectedClients = st.rooms.getOrElse(room, Map.empty)
+
+    // first failed part - clients that not connected
+    val sub = clientIds -- connectedClients.keys
+
+    // second failed part - clients with failed 'sendWs'
+    connectedClients.toSeq.flatMap { case (str, client) =>
+      request.msgs.map { msg =>
+        client.sendWs(Text(s"Message id=${msg.id} epoch=${msg.epoch} ts=${msg.timestamp} text=${msg.msg}"))
+          .map(bool => (str, bool))
+      }
     }.sequence.map { seq =>
-      Response.apply(seq.filter(_._1 == true).map(_._2))
-    }
+      Response(sub.toSeq ++ seq.filter(_._2 == false).map(_._1))
+    }.await
   }
 
   // websocket
   // TODO: make normal logging
-  override protected def handleReceive(room: String, clientId: String, receive: fs2.Stream[IO, Seq[WebSocketFrame]]): fs2.Stream[IO, Unit] = {
+  override protected def handleWsReceive(room: String, clientId: String, receive: fs2.Stream[IO, Seq[WebSocketFrame]]): fs2.Stream[IO, Unit] = {
     val ts = java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
     val msgId = UUID.randomUUID().toString
     // signal about we're joining - put our address to buffer
@@ -87,22 +90,18 @@ trait MessengerService
 
     // receive grouped websocket frames from client
     val rec = receive.foreach { seq =>
-      if (seq.size == 1) {
-        val msg = seq.head
-        msg match {
-          case Close(_) => handleClose(room, clientId)
-          case _ => IO(())
-        }
-      } else {
-        val data = seq.foldLeft(new StringBuilder) { (sb, f) =>
-          sb.append(new String(f.data.toArray, "UTF-8"))
-        }.result()
+      seq.head match {
+        case Text(_, _) =>
+          val data = seq.foldLeft(new StringBuilder) { (sb, f) =>
+            sb.append(new String(f.data.toArray, "UTF-8"))
+          }.result()
 
-        send(room, Map(msgId -> Mess(data)), Set.empty)
-          .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
-          .foreach { is =>
-            IO.consoleForIO.println(s"Send message $msgId, events: " + is)
-          }.compile.drain
+          send(room, Map(msgId -> Mess(data)), Set.empty)
+            .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
+            .foreach { is =>
+              IO.consoleForIO.println(s"Send message $msgId, events: " + is)
+            }.compile.drain
+        case _ => IO(())
       }
     }
 
@@ -110,16 +109,30 @@ trait MessengerService
   }
 
   // from business logic
-  override protected def sendToAll(addresses: Set[Addr], epoch: Long, messages: Map[String, Mess]): IO[Set[Addr]] = {
-    /*
-    val groups = addresses.toSeq.map(_.adr.split(':')).groupBy(arr => (arr(0), arr(1))).map { case (tuple, value) =>
+  override protected def sendToAll(room: String, addresses: Set[Addr], epoch: Long, messages: Map[String, FullMessage[Mess]]): IO[Set[Addr]] = {
+    val groups = addresses.toSeq.map(_.adr.split(':')).groupBy(arr => (arr(0), arr(1))).map { case (tuple, addrs) =>
       val (host, port) = tuple
 
+      val mess = new Messages(
+        room,
+        messages.toSeq.map { case (str, mess) =>
+          new Message(str, mess.msg.message, mess.epoch, mess.timestamp)
+        },
+        addrs.map(_(2)))
+
+      InternalServiceFs2Grpc.clientResource[IO, Any](
+        NettyChannelBuilder.forAddress(host, port.toInt).usePlaintext().build(),
+        _ => new Metadata()
+      ).use { is =>
+        is.receive(mess, ())
+      }.map { resp =>
+        resp.failedAddrs.map(clientId => Addr(s"$host:$port:$clientId"))
+      }
     }
 
-     */
-
-    IO(Set.empty)
+    groups.toSeq.sequence.map {
+      _.flatten.toSet
+    }
   }
 }
 

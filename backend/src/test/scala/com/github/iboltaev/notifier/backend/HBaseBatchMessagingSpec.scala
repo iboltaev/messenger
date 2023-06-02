@@ -3,7 +3,7 @@ package com.github.iboltaev.notifier.backend
 import cats.effect.IO
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
-import com.github.iboltaev.notifier.BatchMessagingLogic.{MsgData, State}
+import com.github.iboltaev.notifier.BatchMessagingLogic.{FullMessage, MsgData, State}
 import com.github.iboltaev.notifier.backend.hbase.HBaseBatchMessaging
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.{ValueCodec, mkStrValueCodec}
 import com.github.iboltaev.notifier.backend.hbase._
@@ -38,7 +38,7 @@ class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
 
         override def connection: AsyncConnection = cn
 
-        override protected def sendToAll(addresses: Set[String], epoch: Long, messages: Map[String, String]): IO[Set[String]] = {
+        override protected def sendToAll(recipient: String, addresses: Set[String], epoch: Long, messages: Map[String, FullMessage[String]]): IO[Set[String]] = {
           IO {
             addresses.foreach(s => println(s"send to $s"))
             Set.empty
@@ -52,9 +52,6 @@ class HBaseBatchMessagingSpec extends AnyFlatSpec with Matchers {
         def sendMsgsIO(recipient: String, messages: Map[String, String], newAddresses: Set[String]) = {
           send(recipient, messages, newAddresses).compile.toVector
         }
-
-        def initState(recipient: String) =
-          put[StateKey, State](stateTableName, stateColFamily, StateKey(recipient), State(0, Set.empty[String]))
       }
     } yield m
   }

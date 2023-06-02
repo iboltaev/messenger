@@ -11,7 +11,7 @@ trait BatchMessagingLogic[A, M] {
   val msg = BatchMessagingLogic.Msg.apply[M] _
 
   // sends message to all addresses, return failed addresses
-  protected def sendToAll(addresses: Set[A], epoch: Long, messages: Map[String, M]): IO[Set[A]]
+  protected def sendToAll(recipient: String, addresses: Set[A], epoch: Long, messages: Map[String, FullMessage[M]]): IO[Set[A]]
   // state logic
   protected def readState(recipient: String): IO[State]
   protected def casState(recipient: String, expect: State, newState: State): IO[Boolean]
@@ -42,7 +42,9 @@ trait BatchMessagingLogic[A, M] {
 
     log >>
     FStream(algo(lastState.epoch, -1, s"start send to ${sendTo.size}, sent=${sent.size}, last failures=${fails.size}")) ++
-    FStream.eval(sendToAll(sendTo, lastState.epoch, messages)).flatMap { failures =>
+    FStream.eval(sendToAll(recipient, sendTo, lastState.epoch, messages.map { case (id, m) =>
+      id -> FullMessage(id, lastState.epoch, timestamp, m)
+    })).flatMap { failures =>
       // it's important here that only if we have no new addresses,
       // no current failures and no previous failures,
       // we can go without epoch increment
@@ -88,6 +90,8 @@ trait BatchMessagingLogic[A, M] {
       sendKeys(MsgData(recipient, messages, timestamp), newAddresses)
     }
   }
+
+  def initState(recipient: String): IO[Unit] = IO(())
 }
 
 object BatchMessagingLogic {
@@ -98,5 +102,7 @@ object BatchMessagingLogic {
   sealed trait Elem[M]
   case class Msg[M](epoch: Long, message: M) extends Elem[M]
   case class Algo[M](lastEpoch: Long, epoch: Long, msg: String) extends Elem[M]
+
+  case class FullMessage[M](id: String, epoch: Long, timestamp: Long, msg: M)
 }
 

@@ -18,4 +18,6 @@ trait DBClient {
                                                       key: K,
                                                       expected: E,
                                                       newValue: V): IO[Boolean]
+
+  def putIfNotExists[K: KeyCodec, V: ValueCodec](tableName: String, colFamily: String, key: K, qualifier: String, value: V): IO[Boolean]
 }
