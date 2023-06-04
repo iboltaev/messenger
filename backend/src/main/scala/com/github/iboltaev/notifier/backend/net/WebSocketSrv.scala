@@ -31,18 +31,8 @@ trait WebSocketSrv {
   }
 
   // TODO: clients map manipulation -> State; make normal logs!!!
-  private def handleClose(room: String, clientId: String): IO[Unit] = state.update { old =>
-    //println(s"handleClose room=$room, clientId=$clientId")
-
-    val rooms = old.rooms.get(room)
-    rooms.fold(old) { map =>
-      val nm = map - clientId
-      if (nm.isEmpty)
-        old.copy(old.rooms - room)
-      else
-        old.copy(old.rooms.updated(room, nm))
-    }
-  }
+  private def handleClose(room: String, clientId: String): IO[Unit] =
+    state.update(_.removeClient(room, clientId))
 
   def routes(wsb: WebSocketBuilder[IO]) = {
     HttpRoutes.of[IO] {
@@ -57,21 +47,7 @@ trait WebSocketSrv {
         val sendStream = FStream.bracket { async[IO] {
           val send = Queue.unbounded[IO, WebSocketFrame].await
           val client = Client(clientId, room)(send)
-          state.getAndUpdate { old =>
-            val newRooms = old.rooms.get(room).fold {
-              // crappy 'org.http4s.dsl.io.->' masks pair definition
-              val pair = (room, Map((clientId, client)))
-              old.rooms + pair
-            } { r =>
-              // crappy 'org.http4s.dsl.io.->' masks pair definition
-              val pair = (clientId, client)
-              old.rooms.updated(room, r + pair)
-            }
-
-            //println(s"new rooms: $newRooms")
-
-            old.copy(rooms = newRooms)
-          }.await
+          state.getAndUpdate(_.addClient(room, clientId, client)).await
 
           send
         }} { _ =>

@@ -80,7 +80,6 @@ trait MessengerService
   // TODO: make normal logging
   override protected def handleWsReceive(room: String, clientId: String, receive: fs2.Stream[IO, Seq[WebSocketFrame]]): fs2.Stream[IO, Unit] = {
     val ts = java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-    val msgId = UUID.randomUUID().toString
     // signal about we're joining - put our address to buffer
     val str = bufferSend(room, clientId, ts, Left(mkAddr(room, clientId)))
       .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
@@ -95,6 +94,8 @@ trait MessengerService
           val data = seq.foldLeft(new StringBuilder) { (sb, f) =>
             sb.append(new String(f.data.toArray, "UTF-8"))
           }.result()
+
+          val msgId = UUID.randomUUID().toString
 
           send(room, Map(msgId -> Mess(data)), Set.empty)
             .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
