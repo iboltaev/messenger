@@ -32,15 +32,26 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
     override def setItem(k: String, v: String): Unit = map.update(k, v)
     override def removeItem(k: String): Unit = map.remove(k)
 
+    override val counter: Long = id
     override def getAndInc: Long = {
       val res = id
       id += 1
       id
     }
+
+    override def restoreCounter(value: Long): Unit = {
+      id = value
+    }
   }
 
   def mkMap(nm: String)(implicit store: KVStore) = new CartesianMap {
     override def name: String = nm
+
+    override def jsonParse(s: String): MapRoot = {
+      val obj = mapper.readValue(s, classOf[MapRoot])
+      obj
+    }
+
     override def jsonStringify(mr: MapRoot): String = {
       val str = mapper.writeValueAsString(mr)
       str
@@ -51,45 +62,16 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
   it should "work-1" in {
     implicit val store = mkStorage
 
-    val cmap = new CartesianMap {
-      override def name: String = "map1"
-      override implicit val storage: KVStore = store
-
-      override def jsonStringify(mr: MapRoot): String = {
-        val str = mapper.writeValueAsString(mr)
-        str
-      }
-    }
+    val cmap = mkMap("map-1")
 
     val mr1 = cmap.upsertLogic("111", "222")
     println(mr1)
 
     cmap.upsert("111", "222")
-
     cmap.iterator.toSeq should be (Seq(("111", "222")))
-    //println(store.map)
 
     cmap.remove("111")
-
     cmap.iterator.toSeq should be (empty)
-    //println(store.map)
-  }
-
-  it should "work-2" in {
-    implicit val store = mkStorage
-    val cmap = mkMap("map-1")
-
-    cmap.upsert("111", "222")
-
-    println(cmap.root)
-    println(store.map)
-
-    cmap.upsert("333", "444")
-
-    println(cmap.root)
-    println(store.map)
-
-    println(cmap.iterator.toVector)
   }
 
   it should "work as ordinal TreeMap for any history, collect garbage for itself" in {
@@ -116,9 +98,29 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
       }
 
       val seq = cm.iterator.toSeq
+
+      // check sequence identity with TreeMap
       seq should contain theSameElementsInOrderAs tm.toSeq
+
+      // check garbage collected
       if (seq.size > 0) {
         store.map.size should be (seq.size + 1)
+      }
+
+      // check size
+      cm.root.fold(0)(_.size) should equal(tm.size)
+
+      // check 'iteratorFromKey'
+      seq.tails.filter(_.nonEmpty).foreach { tail =>
+        val hd = tail.head
+        val s = cm.iteratorFromKey(hd._1).toSeq
+        s should contain theSameElementsInOrderAs tail
+      }
+
+      // check 'iteratorFromIdx'
+      seq.indices.foreach { idx =>
+        val s = cm.iteratorFromIdx(idx).toSeq
+        s should contain theSameElementsInOrderAs tm.drop(idx)
       }
     }
   }
