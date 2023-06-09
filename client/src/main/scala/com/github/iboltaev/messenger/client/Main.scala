@@ -1,17 +1,52 @@
 package com.github.iboltaev.messenger.client
 
+import com.github.iboltaev.messenger.client.storage.cartesian.CartesianMap.JsonMapper
+import com.github.iboltaev.messenger.client.storage.cartesian.{CartesianMap, KVStore}
+import com.github.iboltaev.messenger.client.storage.{Storage => LocalStorage}
 import org.scalajs.dom
-import org.scalajs.dom.Event
+import org.scalajs.dom.{Event, Storage}
+
+import upickle.default._
 
 import scala.scalajs.js
+
 import scala.scalajs.js.annotation.JSImport
 
 object Main {
   @js.native @JSImport("/javascript.svg", JSImport.Default)
   val javascriptLogo: String = js.native
 
+  private var dataStorage: LocalStorage = null
+  private def storage(store: Storage): LocalStorage = {
+    if (dataStorage != null) dataStorage
+    else {
+      val kvStore = new KVStore {
+        private var cnt = 0L
+        override def getItem(k: String): String = store.getItem(k)
+        override def setItem(k: String, v: String): Unit = store.setItem(k, v)
+        override def removeItem(k: String): Unit = store.removeItem(k)
+        override def counter: Long = cnt
+        override def getAndInc: Long = { val res = cnt; cnt += 1; res }
+        override def restoreCounter(value: Long): Unit = { cnt = value }
+      }
+
+      val res = LocalStorage.storage(kvStore)
+      dataStorage = res
+      res
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     println("Hello Scala.js!")
+
+    val localStorage = storage(dom.window.localStorage)
+    
+    val table = localStorage.table("test-table")
+    table.upsert("u111", "o111", "value-1")
+    table.upsert("u000", "o000", "value-0")
+
+    println(s"tables: ${localStorage.tables.toVector}")
+    table.iterator.foreach(println)
 
     dom.document.querySelector("#app").innerHTML = s"""
     <div>

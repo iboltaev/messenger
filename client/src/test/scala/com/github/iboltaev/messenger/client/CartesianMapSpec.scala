@@ -1,13 +1,12 @@
 package com.github.iboltaev.messenger.client
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.github.iboltaev.messenger.client.storage.cartesian.CartesianMap.MapRoot
 import com.github.iboltaev.messenger.client.storage.cartesian.{CartesianMap, KVStore}
 import org.scalacheck.Gen
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
+import upickle.default._
 
 import scala.collection.immutable.TreeMap
 import scala.collection.mutable
@@ -17,12 +16,6 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
   sealed trait Action
   case class Add(key: String, value: String) extends Action
   case class Del(key: String) extends Action
-
-  lazy val mapper = {
-    val res = new ObjectMapper()
-    res.registerModule(DefaultScalaModule)
-    res
-  }
 
   def mkStorage = new KVStore {
     val map = new mutable.HashMap[String, String]()
@@ -47,15 +40,9 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
   def mkMap(nm: String)(implicit store: KVStore) = new CartesianMap {
     override def name: String = nm
 
-    override def jsonParse(s: String): MapRoot = {
-      val obj = mapper.readValue(s, classOf[MapRoot])
-      obj
-    }
+    override def jsonParse(s: String): MapRoot = read[MapRoot](s)
+    override def jsonStringify(mr: MapRoot): String = write(mr)
 
-    override def jsonStringify(mr: MapRoot): String = {
-      val str = mapper.writeValueAsString(mr)
-      str
-    }
     override implicit val storage: KVStore = store
   }
 
@@ -74,7 +61,7 @@ class CartesianMapSpec extends AnyFlatSpec with Matchers with ScalaCheckProperty
     cmap.iterator.toSeq should be (empty)
   }
 
-  it should "work as ordinal TreeMap for any history, collect garbage for itself" in {
+  it should "work as ordinal TreeMap for any history, collect garbage for itself, iteratorFrom works etc" in {
     val addGen = for {
       key <- Gen.alphaNumStr
       value <- Gen.asciiPrintableStr

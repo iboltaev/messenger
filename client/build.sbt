@@ -11,9 +11,10 @@ lazy val client = project.in(file("."))
           ModuleSplitStyle.SmallModulesFor(List("livechart")))
     },
 
-    libraryDependencies ++= Seq("org.scala-js" %%% "scalajs-dom" % "2.4.0",
+    libraryDependencies ++= Seq(
+        "org.scala-js" %%% "scalajs-dom" % "2.4.0",
+        "com.lihaoyi" %%% "upickle" % "3.1.0",
+
         "org.scalatest" %% "scalatest" % "3.2.6" % Test,
-        "org.scalatestplus" %% "scalacheck-1-17" % "3.2.16.0" % Test,
-        "com.fasterxml.jackson.core" % "jackson-databind" % "2.14.3" % Test,
-        "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.14.3" % Test)
+        "org.scalatestplus" %% "scalacheck-1-17" % "3.2.16.0" % Test)
   )
