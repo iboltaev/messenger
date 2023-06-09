@@ -3,7 +3,6 @@ package com.github.iboltaev.notifier.backend
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import cats.effect.{IO, Ref}
-import cats.effect.syntax.all._
 import cats.implicits.toTraverseOps
 import com.github.iboltaev.notifier.BatchMessagingLogic.{Algo, FullMessage}
 import com.github.iboltaev.notifier.backend.MessengerService.{Addr, Mess}
@@ -11,15 +10,14 @@ import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs.ValueCodec
 import com.github.iboltaev.notifier.backend.hbase.{HBaseMessenger, fromJavaFuture}
 import com.github.iboltaev.notifier.backend.net.messages.{InternalServiceFs2Grpc, Message, Messages, Response}
-import com.github.iboltaev.notifier.backend.net.{Client, InternalServiceSrv, WebSocketSrv}
+import com.github.iboltaev.notifier.backend.net.{InternalServiceSrv, WebSocketSrv}
 import io.grpc.Metadata
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{AsyncConnection, ConnectionFactory}
 import org.http4s.netty.server.NettyServerBuilder
-import org.http4s.websocket
 import org.http4s.websocket.WebSocketFrame
-import org.http4s.websocket.WebSocketFrame.{Close, Continuation, Text}
+import org.http4s.websocket.WebSocketFrame.Text
 
 import java.time.ZoneOffset
 import java.util.UUID

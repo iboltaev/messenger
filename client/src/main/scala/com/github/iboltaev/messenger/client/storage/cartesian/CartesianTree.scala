@@ -1,5 +1,7 @@
 package com.github.iboltaev.messenger.client.storage.cartesian
 
+import upickle.default._
+
 import scala.util.Random
 
 case class CartesianTree(id: String, key: String, left: String, right: String, size: Int, value: String, p: Int = Random.nextInt())
@@ -53,7 +55,7 @@ case class CartesianTree(id: String, key: String, left: String, right: String, s
 
 object CartesianTree {
   case class Split(left: CartesianTree, right: CartesianTree, toAdd: Map[String, CartesianTree], toRemove: Seq[String])
-  case class Merge(tree: CartesianTree, toAdd: Map[String, CartesianTree], toRemove: Seq[String])
+  case class Merge(tree: CartesianTree, toAdd: Map[String, CartesianTree], toRemove: Seq[String], toAddRaw: Map[String, String] = Map.empty)
 
   def empty = CartesianTree("", "", "", "", 0, "")
   def newTree(key: String, value: String)(implicit storage: KVStore) = CartesianTree(storage.getAndInc.toString, key, "", "", 1, value)
@@ -109,4 +111,6 @@ object CartesianTree {
       Merge(nroot, nr.toAdd.updated(nroot.id, nroot), right.id +: nr.toRemove)
     }
   }
+
+  implicit val rw: ReadWriter[CartesianTree] = macroRW
 }
