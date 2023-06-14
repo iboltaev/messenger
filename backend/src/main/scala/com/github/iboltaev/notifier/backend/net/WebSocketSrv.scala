@@ -23,7 +23,7 @@ trait WebSocketSrv {
   }
 
   protected def state: Ref[IO, State]
-  protected def handleWsReceive(room: String, clientId: String, receive: FStream[IO, Seq[WebSocketFrame]]): FStream[IO, Unit]
+  protected def handleWsReceive(clientId: String, receive: FStream[IO, Seq[WebSocketFrame]]): FStream[IO, Unit]
   protected def handleInitRoom(room: String): IO[Unit]
 
   private def groupFrames(stream: FStream[IO, WebSocketFrame]): FStream[IO, Seq[WebSocketFrame]] = {
@@ -31,8 +31,8 @@ trait WebSocketSrv {
   }
 
   // TODO: clients map manipulation -> State; make normal logs!!!
-  private def handleClose(room: String, clientId: String): IO[Unit] =
-    state.update(_.removeClient(room, clientId))
+  private def handleClose(clientId: String): IO[Unit] =
+    state.update(_.removeClient(clientId))
 
   def routes(wsb: WebSocketBuilder[IO]) = {
     HttpRoutes.of[IO] {
@@ -41,22 +41,22 @@ trait WebSocketSrv {
         Response(Status.Ok)
       }
 
-      case GET -> Root / "ws" / room => async[IO] {
+      case GET -> Root / "ws"  => async[IO] {
         val clientId = UUID.randomUUID().toString
 
         val sendStream = FStream.bracket { async[IO] {
           val send = Queue.unbounded[IO, WebSocketFrame].await
-          val client = Client(clientId, room)(send)
-          state.getAndUpdate(_.addClient(room, clientId, client)).await
+          val client = Client(clientId)(send)
+          state.getAndUpdate(_.addClient(clientId, client)).await
 
           send
         }} { _ =>
-          handleClose(room, clientId)
+          handleClose(clientId)
         }.flatMap(q => FStream.fromQueueUnterminated(q))
 
         wsb.build(
           sendStream,
-          rec => handleWsReceive(room, clientId, groupFrames(rec) )).await
+          rec => handleWsReceive(clientId, groupFrames(rec))).await
       }
     }
   }

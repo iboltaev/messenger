@@ -1,6 +1,5 @@
 package com.github.iboltaev.messenger.client.storage
 
-import com.github.iboltaev.messenger.client.storage.cartesian.CartesianMap.JsonMapper
 import com.github.iboltaev.messenger.client.storage.cartesian.KVStore
 
 import scala.collection.mutable

@@ -1,21 +1,21 @@
 package com.github.iboltaev.messenger.client
 
-import com.github.iboltaev.messenger.client.storage.cartesian.CartesianMap.JsonMapper
-import com.github.iboltaev.messenger.client.storage.cartesian.{CartesianMap, KVStore}
+import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.cps._
+import cats.effect.std.{Dispatcher, Queue}
+import cats.effect.syntax.all._
+import com.github.iboltaev.messenger.client.net.Net
+import com.github.iboltaev.messenger.client.storage.cartesian.KVStore
 import com.github.iboltaev.messenger.client.storage.{Storage => LocalStorage}
+import com.github.iboltaev.messenger.requests.Requests
 import org.scalajs.dom
-import org.scalajs.dom.{Event, Storage}
-
-import upickle.default._
+import org.scalajs.dom._
 
 import scala.scalajs.js
-
 import scala.scalajs.js.annotation.JSImport
 
-object Main {
-  @js.native @JSImport("/javascript.svg", JSImport.Default)
-  val javascriptLogo: String = js.native
-
+object Main extends IOApp {
+  /*
   private var dataStorage: LocalStorage = null
   private def storage(store: Storage): LocalStorage = {
     if (dataStorage != null) dataStorage
@@ -36,48 +36,78 @@ object Main {
     }
   }
 
-  def main(args: Array[String]): Unit = {
-    println("Hello Scala.js!")
+   */
 
-    val localStorage = storage(dom.window.localStorage)
-    
+
+  def work: IO[Unit] = async[IO] {
+    val sendQueue = Queue.unbounded[IO, Option[String]].await
+    Dispatcher.sequential[IO].use { dispatcher => async[IO] {
+      def handleOpen(ev: Event) = {
+        println("open")
+      }
+
+      def handleClose(ev: CloseEvent) = {
+        println("closed")
+      }
+
+      def handleMessage(ev: MessageEvent) = {
+        println("message: " + ev.data)
+      }
+
+      def handleError(ev: ErrorEvent) = {
+        println("error: " + ev)
+      }
+
+      def handleAddRoom(e: Event) = {
+        val json = Requests.serialize(Requests.RoomAddRequest("ilyxa"))
+        println(s"json=$json")
+        dispatcher.unsafeRunAndForget(sendQueue.offer(Some(json)))
+      }
+
+      IO.delay {
+        dom.document.body.innerHTML =
+          """
+            |<div class="parent" id="container">
+            | <div class="child" id="header"></div>
+            | <div class="main" id="middle">
+            |   <div class="child sidebar" id="rooms">
+            |     <div><button id="plusRoom"><b>+</b></button></div>
+            |   </div>
+            |   <div class="child content" id="messages">
+            |   aaaaaaaaaaabbbbbbbbbbbccccccc
+            |   </div>
+            | </div>
+            | <div class="child footer" id="footer">
+            |</div>
+            |""".stripMargin
+
+        dom.document.getElementById("plusRoom")
+          .addEventListener("click", handleAddRoom)
+      }.await
+
+      val webSocketData = Net.webSocketStream("ws://localhost:8090/ws", sendQueue)
+      val fiber = webSocketData.compile.drain.start.await
+      IO.consoleForIO.println("Done.").await
+      fiber.join.void.await
+      IO.consoleForIO.println("Done - 2").await
+      ()
+    }}.await
+  }
+
+  override def run(args: List[String]): IO[ExitCode] = async[IO] {
+    /*
+        val localStorage = storage(dom.window.localStorage)
+
     val table = localStorage.table("test-table")
     table.upsert("u111", "o111", "value-1")
     table.upsert("u000", "o000", "value-0")
+     */
 
-    println(s"tables: ${localStorage.tables.toVector}")
-    table.iterator.foreach(println)
 
-    dom.document.querySelector("#app").innerHTML = s"""
-    <div>
-      <a href="https://vitejs.dev" target="_blank">
-        <img src="/vite.svg" class="logo" alt="Vite logo" />
-      </a>
-      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
-        <img src="$javascriptLogo" class="logo vanilla" alt="JavaScript logo" />
-      </a>
-      <h1>Hello Scala.js!</h1>
-      <div class="card">
-        <button id="counter" type="button"></button>
-      </div>
-      <p class="read-the-docs">
-        Click on the Vite logo to learn more
-      </p>
-    </div>
-  """
 
-    setupCounter(dom.document.getElementById("counter"))
-  }
 
-  def setupCounter(element: dom.Element) = {
-    var counter = 0
+    val fiber = work.start.await
 
-    def setCounter(count: Int): Unit = {
-      counter = count
-      element.innerHTML = s"count is $counter"
-    }
-
-    element.addEventListener("click", (e: Event) => setCounter(counter + 1))
-    setCounter(0)
+    ExitCode.Success
   }
 }

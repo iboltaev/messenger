@@ -39,7 +39,7 @@ class TableSpec extends AnyFlatSpec with Matchers with ScalaCheckPropertyChecks 
 
   it should "work" in {
     val kvStore = mkStore
-    val storage = Storage.storage(kvStore, jsonMapper)
+    val storage = Storage.storage(kvStore)
 
     storage.tables.toSeq should be (empty)
 

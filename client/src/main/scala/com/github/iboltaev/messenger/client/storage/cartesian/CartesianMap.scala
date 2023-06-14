@@ -23,9 +23,7 @@ trait CartesianMap {
   private def readRoot = {
     val opt = Option(storage.getItem(name))
     opt.fold(CartesianTree.empty) { s =>
-      println(s)
       val mr = jsonParse(s)
-      println(mr.toAdd.toString)
       mr.toAdd.foreach(p => CartesianTree.write(p._2))
       mr.toRemove.foreach(CartesianTree.del)
       val result = CartesianTree.read(mr.rootId, Map.empty)

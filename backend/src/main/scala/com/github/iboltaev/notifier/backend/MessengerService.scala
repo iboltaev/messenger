@@ -4,6 +4,7 @@ import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
 import cats.effect.{IO, Ref}
 import cats.implicits.toTraverseOps
+import com.github.iboltaev.messenger.requests.Requests
 import com.github.iboltaev.notifier.BatchMessagingLogic.{Algo, FullMessage}
 import com.github.iboltaev.notifier.backend.MessengerService.{Addr, Mess}
 import com.github.iboltaev.notifier.backend.hbase.bindings.Codecs
@@ -54,20 +55,22 @@ trait MessengerService
   }
 
   // grpc
+  // sends messages to appropriate clients, connected to this instance
   override def receive(request: Messages, ctx: Metadata): IO[Response] = async[IO]{
     val room = request.room
     val clientIds = request.clientIds.toSet
     val st = state.get.await
-    val connectedClients = st.rooms.getOrElse(room, Map.empty)
+    val connectedClients = st.allClients
 
     // first failed part - clients that not connected
-    val sub = clientIds -- connectedClients.keys
+    val sub = clientIds.filterNot(connectedClients.contains)
+    val taken = clientIds.filter(connectedClients.contains)
 
     // second failed part - clients with failed 'sendWs'
-    connectedClients.toSeq.flatMap { case (str, client) =>
+    taken.toSeq.flatMap(st.allClients.get).flatMap { client =>
       request.msgs.map { msg =>
         client.sendWs(Text(s"Message id=${msg.id} epoch=${msg.epoch} ts=${msg.timestamp} text=${msg.msg}"))
-          .map(bool => (str, bool))
+          .map(bool => (client.clientId, bool))
       }
     }.sequence.map { seq =>
       Response(sub.toSeq ++ seq.filter(_._2 == false).map(_._1))
@@ -76,35 +79,39 @@ trait MessengerService
 
   // websocket
   // TODO: make normal logging
-  override protected def handleWsReceive(room: String, clientId: String, receive: fs2.Stream[IO, Seq[WebSocketFrame]]): fs2.Stream[IO, Unit] = {
-    val ts = java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-    // signal about we're joining - put our address to buffer
-    val str = bufferSend(room, clientId, ts, Left(mkAddr(room, clientId)))
-      .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
-      .foreach { is =>
-        IO.consoleForIO.println(s"Connected client $clientId, events: " + is)
-      }
+  override protected def handleWsReceive(clientId: String, receive: fs2.Stream[IO, Seq[WebSocketFrame]]): fs2.Stream[IO, Unit] = {
+    val textMsgs = receive.collect {
+      case list @ Text(_, _) :: _ =>
+        list.foldLeft(new StringBuilder) { (sb, f) =>
+          sb.append(new String(f.data.toArray, "UTF-8"))
+        }.result()
+    }
 
-    // receive grouped websocket frames from client
-    val rec = receive.foreach { seq =>
-      seq.head match {
-        case Text(_, _) =>
-          val data = seq.foldLeft(new StringBuilder) { (sb, f) =>
-            sb.append(new String(f.data.toArray, "UTF-8"))
-          }.result()
+    textMsgs.foreach { str =>
+      Requests.parse(str) match {
+        case Requests.RoomAddRequest(room) =>
+          val ts = java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+          // signal about we're joining - put our address to buffer
+          bufferSend(room, clientId, ts, Left(mkAddr(room, clientId)))
+            .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
+            .foreach { is =>
+              IO.consoleForIO.println(s"Connected client $clientId, events: " + is)
+            }.compile.drain
 
+        case Requests.SendMessage(room, message) =>
           val msgId = UUID.randomUUID().toString
 
-          send(room, Map(msgId -> Mess(data)), Set.empty)
+          send(room, Map(msgId -> Mess(message)), Set.empty)
             .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
             .foreach { is =>
               IO.consoleForIO.println(s"Send message $msgId, events: " + is)
             }.compile.drain
-        case _ => IO(())
+
+        case Requests.GetHistory(room, epoch, ts) =>
+          // TODO: implement
+          IO.unit
       }
     }
-
-    str ++ rec
   }
 
   // from business logic
