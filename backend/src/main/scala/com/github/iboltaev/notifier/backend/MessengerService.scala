@@ -2,7 +2,7 @@ package com.github.iboltaev.notifier.backend
 
 import cats.effect.cps._
 import cats.effect.unsafe.IORuntime
-import cats.effect.{IO, Ref}
+import cats.effect.{IO, Ref, Resource}
 import cats.implicits.toTraverseOps
 import com.github.iboltaev.messenger.requests.Requests
 import com.github.iboltaev.notifier.BatchMessagingLogic.{Algo, FullMessage}
@@ -69,7 +69,9 @@ trait MessengerService
     // second failed part - clients with failed 'sendWs'
     taken.toSeq.flatMap(st.allClients.get).flatMap { client =>
       request.msgs.map { msg =>
-        client.sendWs(Text(s"Message id=${msg.id} epoch=${msg.epoch} ts=${msg.timestamp} text=${msg.msg}"))
+        val msgObj = Requests.MessageResp(msg.id, msg.epoch, msg.timestamp, request.room, msg.msg)
+        val msgText = Requests.serialize(msgObj)
+        client.sendWs(Text(msgText))
           .map(bool => (client.clientId, bool))
       }
     }.sequence.map { seq =>
@@ -91,12 +93,20 @@ trait MessengerService
       Requests.parse(str) match {
         case Requests.RoomAddRequest(room) =>
           val ts = java.time.LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+          // init room, if not exists
+          initRoomIfNotExists(room) >>
           // signal about we're joining - put our address to buffer
           bufferSend(room, clientId, ts, Left(mkAddr(room, clientId)))
             .fold(IndexedSeq.empty[Algo[Mess]])(_ :+ _)
             .foreach { is =>
               IO.consoleForIO.println(s"Connected client $clientId, events: " + is)
-            }.compile.drain
+            }.compile.drain >>
+          // send response back
+          state.get.flatMap { s =>
+            s.allClients.get(clientId).fold(IO.unit) { client =>
+              client.sendWs(Text(Requests.serialize(Requests.RoomAddResponse(room)))).void
+            }
+          }
 
         case Requests.SendMessage(room, message) =>
           val msgId = UUID.randomUUID().toString
@@ -126,10 +136,12 @@ trait MessengerService
         },
         addrs.map(_(2)))
 
-      InternalServiceFs2Grpc.clientResource[IO, Any](
-        NettyChannelBuilder.forAddress(host, port.toInt).usePlaintext().build(),
-        _ => new Metadata()
-      ).use { is =>
+      val client = for {
+        channel <- Resource.make(IO.delay(NettyChannelBuilder.forAddress(host, port.toInt).usePlaintext().build()))(c => IO.delay(c.shutdownNow()))
+        client <- InternalServiceFs2Grpc.clientResource[IO, Any](channel, _ => new Metadata())
+      } yield client
+
+      client.use { is =>
         is.receive(mess, ())
       }.map { resp =>
         resp.failedAddrs.map(clientId => Addr(s"$host:$port:$clientId"))
