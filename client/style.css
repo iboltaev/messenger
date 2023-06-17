@@ -46,6 +46,21 @@
   border: 1px solid black;
 }
 
+.inputs {
+  width: 90%;
+  border: 3px solid #DFDFDF;
+}
+
+.msg {
+  width: 90%;
+  border: 1px solid #DFDFDF;
+}
+
+.room {
+  width: 90%;
+  border: 1px solid #DFDFDF;
+}
+
 body {
   background-color: #282c35;
   font-family: Verdana;
