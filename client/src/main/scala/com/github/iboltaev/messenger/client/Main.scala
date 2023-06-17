@@ -1,20 +1,14 @@
 package com.github.iboltaev.messenger.client
 
-import cats.effect.{ExitCode, IO, IOApp, Ref}
 import cats.effect.cps._
 import cats.effect.std.{Dispatcher, Queue}
-import cats.effect.syntax.all._
+import cats.effect.{ExitCode, IO, IOApp, Ref}
 import com.github.iboltaev.messenger.client.net.Net
-import com.github.iboltaev.messenger.client.storage.cartesian.KVStore
-import com.github.iboltaev.messenger.client.storage.{Storage => LocalStorage}
 import com.github.iboltaev.messenger.requests.Requests
 import org.scalajs.dom
 import org.scalajs.dom._
 
 import scala.collection.immutable.TreeMap
-import scala.scalajs.js
-import scala.scalajs.js.Object.keys
-import scala.scalajs.js.annotation.JSImport
 
 object Main extends IOApp {
   case class RoomState(
