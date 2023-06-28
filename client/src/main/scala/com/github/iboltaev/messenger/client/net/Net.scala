@@ -9,7 +9,7 @@ import scala.concurrent.duration.Duration
 
 object Net {
 
-  private def wsSocket(url: String, sendQueue: Queue[IO, Option[String]]): FStream[IO, Either[Event, MessageEvent]] = {
+  private def wsSocket(url: String, sendQueue: Queue[IO, Option[String]], onReconnect: => IO[Unit]): FStream[IO, Either[Event, MessageEvent]] = {
     val receiveStream = for {
       // make dispatcher and receive queue
       dispatcher <- FStream.resource(Dispatcher.sequential[IO])
@@ -43,14 +43,14 @@ object Net {
         }
       }
       // construct receive stream
-      s <- FStream.fromQueueNoneTerminated(queue)
+      s <- FStream.eval(onReconnect) >> FStream.fromQueueNoneTerminated(queue)
     } yield s
 
     receiveStream
   }
 
-  def webSocketStream(url: String, sendQueue: Queue[IO, Option[String]], waitInterval: Int = 1): FStream[IO, Either[Event, MessageEvent]] = {
-    (FStream.eval(IO.consoleForIO.println(s"Connecting to $url")) >> wsSocket(url, sendQueue)) ++
-    (FStream.eval(IO.sleep(Duration.apply(waitInterval, "s"))) >> webSocketStream(url, sendQueue))
+  def webSocketStream(url: String, sendQueue: Queue[IO, Option[String]], onReconnect: => IO[Unit], waitInterval: Int = 1): FStream[IO, Either[Event, MessageEvent]] = {
+    (FStream.eval(IO.consoleForIO.println(s"Connecting to $url")) >> wsSocket(url, sendQueue, onReconnect)) ++
+    (FStream.eval(IO.sleep(Duration.apply(waitInterval, "s"))) >> webSocketStream(url, sendQueue, onReconnect, waitInterval))
   }
 }
