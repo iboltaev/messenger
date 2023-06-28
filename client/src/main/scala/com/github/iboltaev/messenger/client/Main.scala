@@ -181,7 +181,10 @@ object Main extends IOApp {
         inputText.addEventListener("keydown", e => handleEnter(inputText, e))
       }.await
 
-      val webSocketData = Net.webSocketStream("ws://localhost:8090/ws", sendQueue)
+      val webSocketData = Net.webSocketStream("ws://localhost:8090/ws", sendQueue, async[IO] {
+        // TODO: on reconnect 1) send room add request 2) request history
+        IO.consoleForIO.println(s"Reconnected!").await
+      })
       val fiber = webSocketData.foreach {
         case Left(value) =>
           IO.consoleForIO.println(s"Handled $value")
