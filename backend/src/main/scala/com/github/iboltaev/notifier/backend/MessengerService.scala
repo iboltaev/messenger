@@ -124,7 +124,7 @@ trait MessengerService
     }
   }
 
-  // from business logic
+  // send messages via grpc, called from business logic
   override protected def sendToAll(room: String, addresses: Set[Addr], epoch: Long, messages: Map[String, FullMessage[Mess]]): IO[Set[Addr]] = {
     val groups = addresses.toSeq.map(_.adr.split(':')).groupBy(arr => (arr(0), arr(1))).map { case (tuple, addrs) =>
       val (host, port) = tuple
@@ -136,6 +136,7 @@ trait MessengerService
         },
         addrs.map(_(2)))
 
+      // TODO: cache channels
       val client = for {
         channel <- Resource.make(IO.delay(NettyChannelBuilder.forAddress(host, port.toInt).usePlaintext().build()))(c => IO.delay(c.shutdownNow()))
         client <- InternalServiceFs2Grpc.clientResource[IO, Any](channel, _ => new Metadata())
